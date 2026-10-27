@@ -1,148 +1,59 @@
-# MediClinic — Parcial 1
+# Reto 06 – Contactos (Firestore) · Tareas (Realtime DB) · Frutas (Dexie) + estado de red
 
-Proyecto del curso **Desarrollo de Software para Plataformas Móviles** (UAO).
-
-Contiene dos aplicaciones independientes para la clínica **MediClinic**:
-
-| App | Carpeta | Tecnología | Propósito |
-|-----|---------|------------|-----------|
-| PWA Pacientes | `pwa-mediclinic/` | React + Vite + Service Worker | Administración de pacientes (recepción) |
-| App Médicos | `ionic-mediclinic/` | Ionic React + Tabs | Consulta y gestión de visitas médicas |
-
-> Las aplicaciones **no comparten datos**. Cada una usa su propio `localStorage`.
-
----
-
-## Estructura del repositorio
-
+## Correr
 ```
-├── pwa-mediclinic/       # Ejercicio 1 — PWA React
-├── ionic-mediclinic/     # Ejercicio 2 — Ionic React
-├── screenshots/          # Capturas de pantalla
-└── README.md
-```
-
----
-
-## Ejercicio 1 — PWA React (`pwa-mediclinic`)
-
-### Funcionalidades
-
-- **Login** con usuarios fijos, sesión en `localStorage`, recuperación al recargar y cierre de sesión.
-- **Pacientes**: listado, formulario de registro (nombre, apellido, CC, teléfono) con validación.
-- **Búsqueda** por nombre, apellido o CC (estado en componente padre, lista filtrada en hijo).
-- **PWA**: `manifest.json`, `service-worker.js` con estrategia híbrida (según clase 02).
-
-### Usuarios de prueba
-
-| Usuario | Contraseña |
-|---------|------------|
-| `admin` | `admin123` |
-| `recepcion` | `recep2024` |
-
-### Ejecutar en desarrollo
-
-```bash
-cd pwa-mediclinic
 npm install
 npm run dev
 ```
+Abre http://localhost:5173
 
-Abrir `http://localhost:5173`
-
-### Build de producción
-
-```bash
-npm run build
-npm run preview
+## Configurar Firebase
+1. Authentication → habilitar **Correo/contraseña**.
+2. **Firestore**: crear base de datos y publicar estas reglas:
 ```
-
-### Instalar como PWA en el celular
-
-1. Desplegar la carpeta `dist/` en un hosting HTTPS (Netlify, Vercel, GitHub Pages, etc.).
-2. Abrir la URL en Chrome (Android) o Safari (iOS).
-3. **Android**: Menú ⋮ → *Instalar aplicación* o *Agregar a pantalla de inicio*.
-4. **iOS**: Compartir → *Agregar a pantalla de inicio*.
-
-### Estrategia del Service Worker (híbrida)
-
-| Recurso | Estrategia |
-|---------|------------|
-| HTML | Network First |
-| JS / CSS | Cache First |
-| Imágenes | Stale While Revalidate |
-| Otros | Network First |
-
----
-
-## Ejercicio 2 — Ionic React (`ionic-mediclinic`)
-
-### Funcionalidades
-
-- **Login** con componentes Ionic e `IonToast` en credenciales incorrectas.
-- **IonTabs**: Visitas, Pacientes, Perfil.
-- **Visitas del día** con paciente, hora y estado.
-- **Detalle de visita** con cambio de estado: `pendiente` → `en_camino` → `finalizada`.
-- Persistencia en `localStorage`.
-
-### Usuarios de prueba
-
-| Usuario | Contraseña |
-|---------|------------|
-| `dr.garcia` | `medico123` |
-| `dr.lopez` | `medico456` |
-
-### Ejecutar en desarrollo
-
-```bash
-cd ionic-mediclinic
-npm install
-npm run dev
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /contacts/{id} {
+      allow read, update, delete: if request.auth != null
+                                  && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null
+                    && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}
 ```
-
-Abrir `http://localhost:5173`
-
-### Build
-
-```bash
-npm run build
+3. **Realtime Database**: crearla (modo bloqueado) y en la pestaña Reglas publicar:
 ```
-
-### Ejecutar en Android (opcional)
-
-Requisitos: Android Studio, Java 17, modo desarrollador en el dispositivo.
-
-```bash
-ionic cap run android
+{
+  "rules": {
+    "tasks": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
 ```
+4. Copiar la config web en `src/firebase/config.js`, incluyendo `databaseURL`
+   (sale en la Realtime Database; en algunas regiones termina en `firebasedatabase.app`).
 
----
+## Probar el modo sin conexión
+Chrome → F12 → Network → marcar **Offline**. Contactos y Tareas se deshabilitan; Frutas sigue funcionando.
+Al quitar Offline, todo se habilita de nuevo.
 
-## Capturas de pantalla
-
-Las capturas se encuentran en la carpeta `screenshots/`:
-
-- `pwa-login.png` — Login PWA
-- `pwa-pacientes.png` — Lista y formulario de pacientes
-- `pwa-busqueda.png` — Búsqueda de pacientes
-- `ionic-login.png` — Login Ionic
-- `ionic-visitas.png` — Tab de visitas del día
-- `ionic-detalle.png` — Detalle de visita con cambio de estado
-- `ionic-perfil.png` — Tab de perfil
-
----
-
-## Rama de entrega
-
-```bash
-git checkout -b parcial-1-nombre-apellido
+## Estructura
 ```
-
-Reemplazar `nombre-apellido` con tu nombre real antes de entregar.
-
----
-
-## Autor
-
-Estudiante — Desarrollo de Software para Plataformas Móviles  
-Universidad Autónoma de Occidente (UAO)
+src/
+  firebase/config.js              auth + Firestore + Realtime DB
+  db/db.js                        Dexie (versión 1 y 2 de la tabla frutas)
+  hooks/useFirebaseAuth.js        login / register / logout
+  hooks/useCollection.js          CRUD Firestore
+  hooks/useRealTimeCollection.js  CRUD Realtime DB con onValue
+  hooks/useDexie.js               CRUD Dexie con useLiveQuery + searchByName (newFunction)
+  hooks/useNetwork.js             @capacitor/network
+  context/AuthContext.jsx         sesión
+  components/OfflineBanner.jsx    aviso "sin conexión"
+  pages/ Login Register Home Contacts Tasks Fruits
+```
